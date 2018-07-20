@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">Popular Movies</string>
+    <string name="sort_by_popular">Show Popular</string>
+    <string name="sort_by_top_rated">Show Top Rated</string>
+    <string name="sort_by_favorites">Favorites</string>
+    <string name="mark_as_favorite">Mark as Favorite</string>
+    <string name="remove_as_favorite">Remove from Favorites</string>
+    <string name="error_message">Sorry, failed to load data. Check your network connection and try again.</string>
+    <string name="error_message_favorites">No favorite movies added.</string>
+</resources>
