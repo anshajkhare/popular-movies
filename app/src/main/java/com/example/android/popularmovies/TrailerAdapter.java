@@ -7,7 +7,10 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
+import com.example.android.popularmovies.pojo.TrailerData;
+
 import java.net.URL;
+import java.util.List;
 
 /**
  * Created by Khare on 01-Apr-18.
@@ -18,7 +21,8 @@ public class TrailerAdapter extends RecyclerView.Adapter<TrailerAdapter.TrailerV
     private static final String TAG = TrailerAdapter.class.getSimpleName();
     private int mNumberItems;
     Context mContext;
-    private URL[] trailerPath;
+    //private URL[] trailerPath;
+    private List<TrailerData> trailerData;
     private LayoutInflater mInflater;
     private ItemTrailerClickListener mTrailerClickListener;
 
@@ -26,9 +30,12 @@ public class TrailerAdapter extends RecyclerView.Adapter<TrailerAdapter.TrailerV
         mContext = context;
     }
 
-    public void setTrailerData(URL[] data) {
-        trailerPath = data;
-        mNumberItems = trailerPath.length;
+    public void setTrailerData(List<TrailerData> data) {
+        trailerData = data;
+        if (trailerData != null)
+            mNumberItems = trailerData.size();
+        else
+            mNumberItems = 0;
         notifyDataSetChanged();
     }
 
@@ -46,9 +53,12 @@ public class TrailerAdapter extends RecyclerView.Adapter<TrailerAdapter.TrailerV
 
     @Override
     public void onBindViewHolder(TrailerAdapter.TrailerViewHolder holder, int position) {
-        if(trailerPath != null) {
-            URL url = trailerPath[position];
-            holder.trailerItemView.setText("Trailer " + (position + 1));
+        if (trailerData != null) {
+            String name = trailerData.get(position).getName();
+            if (name != null) {
+                String text = "Trailer " + (position + 1) + " " + name;
+                holder.trailerItemView.setText(text);
+            }
         }
     }
 

@@ -2,6 +2,7 @@ package com.example.android.popularmovies;
 
 import android.content.Context;
 import android.database.Cursor;
+import android.net.Uri;
 import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -9,9 +10,13 @@ import android.view.ViewGroup;
 import android.widget.ImageView;
 
 import com.example.android.popularmovies.data.MovieContract;
+import com.example.android.popularmovies.pojo.MovieData;
+import com.example.android.popularmovies.utilites.MovieApiModule;
+import com.example.android.popularmovies.utilites.NetworkUtils;
 import com.squareup.picasso.Picasso;
 
 import java.net.URL;
+import java.util.List;
 
 /**
  * Adapter class to bind the images for each movie
@@ -21,7 +26,7 @@ public class MovieAdapter extends RecyclerView.Adapter<MovieAdapter.ImageViewHol
 
     private static final String TAG = MovieAdapter.class.getSimpleName();
     private int mNumberItems;
-    private URL[] imagePath;
+    private List<MovieData> moviesList;
     private LayoutInflater mInflater;
     private ItemClickListener mClickListener;
     private Cursor mCursor;
@@ -31,8 +36,8 @@ public class MovieAdapter extends RecyclerView.Adapter<MovieAdapter.ImageViewHol
         mNumberItems = numberOfItems;
     }
 
-    public void setImageData(URL[] data) {
-        imagePath = data;
+    public void setImageData(List<MovieData> data) {
+        moviesList = data;
         notifyDataSetChanged();
     }
 
@@ -52,17 +57,25 @@ public class MovieAdapter extends RecyclerView.Adapter<MovieAdapter.ImageViewHol
 
     @Override
     public void onBindViewHolder(ImageViewHolder holder, int position) {
-        if (MainActivity.getCurrentSelection() != MainActivity.OPTION_FAVORITES) {
-            if (imagePath != null) {
-                URL url = imagePath[position];
-                String uri = url.toString();
-                Picasso.with(holder.imageItemView.getContext()).load(uri).into(holder.imageItemView);
+        if (moviesList != null) {
+            MovieData movieData = moviesList.get(position);
+            if (MainActivity.getCurrentSelection() != MainActivity.OPTION_FAVORITES) {
+                String path = movieData.getPosterPath();
+                if (path != null) {
+                    Uri uri = Uri.parse(MovieApiModule.IMAGE_BASE_URL).buildUpon()
+                            .appendEncodedPath(path)
+                            .build();
+                    Picasso.with(holder.imageItemView.getContext()).load(uri).into(holder.imageItemView);
+                }
+            } else {
+                mCursor.moveToPosition(position);
+                String path = mCursor.getString(mCursor.getColumnIndex(MovieContract.MovieEntry.COLUMN_IMAGE_URL));
+                Uri uri = Uri.parse(MovieApiModule.IMAGE_BASE_URL).buildUpon()
+                        .appendEncodedPath(path)
+                        .build();
+                String url = uri.toString();
+                Picasso.with(holder.imageItemView.getContext()).load(url).into(holder.imageItemView);
             }
-        }
-        else {
-            mCursor.moveToPosition(position);
-            String url = mCursor.getString(mCursor.getColumnIndex(MovieContract.MovieEntry.COLUMN_IMAGE_URL));
-            Picasso.with(holder.imageItemView.getContext()).load(url).into(holder.imageItemView);
         }
     }
 
@@ -80,6 +93,7 @@ public class MovieAdapter extends RecyclerView.Adapter<MovieAdapter.ImageViewHol
     }
 
     public Cursor swapCursor(Cursor data) {
+
         if(mCursor == data) {
             return null;
         }

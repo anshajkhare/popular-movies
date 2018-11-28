@@ -7,6 +7,10 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
+import com.example.android.popularmovies.pojo.ReviewData;
+
+import java.util.List;
+
 /**
  * Created by Khare on 01-Apr-18.
  */
@@ -16,18 +20,23 @@ public class ReviewAdapter extends RecyclerView.Adapter<ReviewAdapter.ReviewView
     private static final String TAG = ReviewAdapter.class.getSimpleName();
     private int mNumberItems;
     private Context mContext;
-    private String[] authorNames;
-    private String[] reviewContent;
+    /*private String[] authorNames;
+    private String[] reviewContent;*/
+    private List<ReviewData> reviewData;
     private LayoutInflater mInflater;
 
     ReviewAdapter(Context context) {
         mContext = context;
     }
 
-    public void setReviewData(String[] authors, String[] content) {
-        authorNames = authors;
-        reviewContent = content;
-        mNumberItems = authorNames.length;
+    public void setReviewData(List<ReviewData> data) {
+        /*authorNames = authors;
+        reviewContent = content;*/
+        reviewData = data;
+        if (reviewData != null)
+            mNumberItems = reviewData.size();
+        else
+            mNumberItems = 0;
         notifyDataSetChanged();
     }
 
@@ -46,11 +55,14 @@ public class ReviewAdapter extends RecyclerView.Adapter<ReviewAdapter.ReviewView
 
     @Override
     public void onBindViewHolder(ReviewViewHolder holder, int position) {
-        if(reviewContent != null) {
-            String review = reviewContent[position];
-            String author = authorNames[position];
-            holder.reviewContentView.setText(review);
-            holder.authorNameView.setText(author);
+        if (reviewData != null) {
+            ReviewData reviewContent = reviewData.get(position);
+            if (reviewContent != null) {
+                String review = reviewContent.getContent();
+                String author = reviewContent.getAuthor();
+                holder.reviewContentView.setText(review);
+                holder.authorNameView.setText(author);
+            }
         }
     }
 

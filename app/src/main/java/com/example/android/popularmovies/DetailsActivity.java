@@ -10,6 +10,7 @@ import android.os.Parcelable;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
@@ -19,24 +20,40 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.example.android.popularmovies.data.MovieContract;
+import com.example.android.popularmovies.pojo.MovieData;
+import com.example.android.popularmovies.pojo.ReviewData;
+import com.example.android.popularmovies.pojo.ReviewResponse;
+import com.example.android.popularmovies.pojo.TrailerData;
+import com.example.android.popularmovies.pojo.TrailerResponse;
 import com.example.android.popularmovies.utilites.DetailJsonUtils;
+import com.example.android.popularmovies.utilites.MovieApiCallInterface;
+import com.example.android.popularmovies.utilites.MovieApiModule;
 import com.example.android.popularmovies.utilites.NetworkUtils;
 import com.squareup.picasso.Picasso;
 
 import java.net.URL;
+import java.util.List;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 public class DetailsActivity extends AppCompatActivity
         implements TrailerAdapter.ItemTrailerClickListener {
 
     private static final String TAG = DetailsActivity.class.getSimpleName();
 
-    private final String KEY_TRAILER_RECYCLER_STATE = "trsiler_recycler_state";
+    static final String YOUTUBE_BASE_URL = "https://www.youtube.com/watch";
+    static final String WATCH_QUERY = "v";
+
+    private final String KEY_TRAILER_RECYCLER_STATE = "trailer_recycler_state";
     private final String KEY_REVIEW_RECYCLER_STATE = "review_recycler_state";
     private final String KEY_TITLE = "title";
     private final String KEY_YEAR = "year";
     private final String KEY_RATING = "rating";
     private final String KEY_PLOT = "plot";
     private final String KEY_URI = "uri";
+    private Uri uri;
 
     private ImageView movieImageView;
     private TextView movieTitleView;
@@ -57,8 +74,10 @@ public class DetailsActivity extends AppCompatActivity
     private TextView reviewErrorMessageView;
     private boolean setFavorite;
     private Button favoriteButton;
-    private String uri;
+    private MovieData movieData;
 
+    private List<TrailerData> trailerData;
+    private List<ReviewData> reviewData;
 
     SharedPreferences favoritesPreference;
     Parcelable mTrailerRecyclerViewState;
@@ -115,39 +134,29 @@ public class DetailsActivity extends AppCompatActivity
             Picasso.with(this).load(savedInstanceState.getString(KEY_URI)).into(movieImageView);
         }
 
-
-        // Display the image that was passed from MainActivity
-        Intent intent = getIntent();
-
-        uri = intent.getStringExtra("imageURL");
-        if(uri != null) {
-            Picasso.with(this).load(uri).into(movieImageView);
+        Bundle bundle = getIntent().getExtras();
+        if(bundle != null) {
+            movieData = bundle.getParcelable(MainActivity.MOVIE_ITEM_DATA_BUNDLE);
+            if (movieData != null) {
+                String path = movieData.getPosterPath();
+                uri = Uri.parse(MovieApiModule.IMAGE_BASE_URL).buildUpon()
+                        .appendEncodedPath(path)
+                        .build();
+                Picasso.with(this).load(uri).into(movieImageView);
+                movieTitleView.setText(movieData.getTitle());
+                movieYearView.setText(movieData.getReleaseDate());
+                movieRatingView.setText(String.valueOf(movieData.getVoteAverage()));
+                moviePlotView.setText(movieData.getOverview());
+                mMovieId = String.valueOf(movieData.getId());
+                setFavorite = favoritesPreference.getBoolean(mMovieId, false);
+                if (setFavorite) {
+                    favoriteButton.setText(R.string.remove_as_favorite);
+                } else {
+                    favoriteButton.setText(R.string.mark_as_favorite);
+                }
+                loadTrailerData(mMovieId);
+            }
         }
-        String title = intent.getStringExtra("movieTitle");
-        if (title != null) {
-            movieTitleView.setText(title);
-        }
-        String year = intent.getStringExtra("movieYear");
-        if (year != null) {
-            movieYearView.setText(year);
-        }
-        String rating = intent.getStringExtra("movieRating");
-        if (rating != null) {
-            movieRatingView.setText(rating);
-        }
-        String plot = intent.getStringExtra("moviePlot");
-        if (plot != null) {
-            moviePlotView.setText(plot);
-        }
-        mMovieId = intent.getStringExtra("movieId");
-        setFavorite = favoritesPreference.getBoolean(mMovieId, false);
-        if(setFavorite) {
-            favoriteButton.setText(R.string.remove_as_favorite);
-        }
-        else {
-            favoriteButton.setText(R.string.mark_as_favorite);
-        }
-        loadTrailerData(mMovieId);
     }
 
     @Override
@@ -163,7 +172,7 @@ public class DetailsActivity extends AppCompatActivity
         outState.putString(KEY_YEAR, year);
         outState.putString(KEY_RATING, rating);
         outState.putString(KEY_PLOT, plot);
-        outState.putString(KEY_URI, uri);
+        outState.putString(KEY_URI, uri.toString());
 
         mTrailerRecyclerViewState = mTrailerRecyclerView.getLayoutManager().onSaveInstanceState();
         mReviewRecyclerViewState = mReviewRecyclerView.getLayoutManager().onSaveInstanceState();
@@ -183,7 +192,44 @@ public class DetailsActivity extends AppCompatActivity
     }
 
     private void loadTrailerData(String mMovieId) {
-        new FetchTrailerTask().execute(mMovieId);
+        MovieApiCallInterface movieApiCallInterface =
+                MovieApiModule.getResponse().create(MovieApiCallInterface.class);
+        Call<TrailerResponse> trailerCall =
+                movieApiCallInterface.getTrailers(mMovieId, MovieApiModule.API_KEY_VALUE);
+        trailerCall.enqueue(new Callback<TrailerResponse>() {
+            @Override
+            public void onResponse(Call<TrailerResponse> call, Response<TrailerResponse> response) {
+                trailerData = response.body().getTrailerData();
+                trailerAdapter.setTrailerData(trailerData);
+                trailerErrorMessageView.setVisibility(View.INVISIBLE);
+                mTrailerRecyclerView.setVisibility(View.VISIBLE);
+            }
+
+            @Override
+            public void onFailure(Call<TrailerResponse> call, Throwable t) {
+                trailerErrorMessageView.setVisibility(View.VISIBLE);
+                mTrailerRecyclerView.setVisibility(View.INVISIBLE);
+                Log.e(TAG, t.toString());
+            }
+        });
+        Call<ReviewResponse> reviewCall =
+                movieApiCallInterface.getReviews(mMovieId, MovieApiModule.API_KEY_VALUE);
+        reviewCall.enqueue(new Callback<ReviewResponse>() {
+            @Override
+            public void onResponse(Call<ReviewResponse> call, Response<ReviewResponse> response) {
+                reviewData = response.body().getReviewData();
+                reviewAdapter.setReviewData(reviewData);
+                reviewErrorMessageView.setVisibility(View.INVISIBLE);
+                mReviewRecyclerView.setVisibility(View.VISIBLE);
+            }
+
+            @Override
+            public void onFailure(Call<ReviewResponse> call, Throwable t) {
+                reviewErrorMessageView.setVisibility(View.VISIBLE);
+                mReviewRecyclerView.setVisibility(View.INVISIBLE);
+                Log.e(TAG, t.toString());
+            }
+        });
     }
 
     @Override
@@ -199,95 +245,51 @@ public class DetailsActivity extends AppCompatActivity
 
     @Override
     public void onItemClick(View view, int position) {
-        URL url = trailerUrls[position];
-        Intent yt_play = new Intent(Intent.ACTION_VIEW, Uri.parse(url.toString()));
-        Intent chooser = Intent.createChooser(yt_play , "Open With");
+        String key = trailerData.get(position).getKey();
+        Uri uri = Uri.parse(YOUTUBE_BASE_URL).buildUpon()
+                .appendQueryParameter(WATCH_QUERY, key)
+                .build();
 
-        if (yt_play .resolveActivity(getPackageManager()) != null) {
+        Intent yt_play = new Intent(Intent.ACTION_VIEW, uri);
+        Intent chooser = Intent.createChooser(yt_play, "Open With");
+
+        if (yt_play.resolveActivity(getPackageManager()) != null) {
             startActivity(chooser);
         }
     }
 
     public void addMovieToFavorites(View view) {
+        int number = favoritesPreference.getInt("favoritesNumber", 0);
         SharedPreferences.Editor editor = favoritesPreference.edit();
         if (setFavorite) {
             Uri uri = MovieContract.MovieEntry.CONTENT_URI;
             uri = uri.buildUpon().appendPath(mMovieId).build();
             String[] selectionArgs = new String[]{mMovieId};
-            getContentResolver().delete(uri,null,selectionArgs);
+            getContentResolver().delete(uri, null, selectionArgs);
             favoriteButton.setText(R.string.mark_as_favorite);
             editor.putBoolean(mMovieId, false);
+            editor.putInt("favoritesNumber", number - 1);
             setFavorite = false;
         }
         else {
-            Intent intent = getIntent();
             ContentValues contentValues = new ContentValues();
             contentValues.put(MovieContract.MovieEntry.COLUMN_MOVIE_ID, mMovieId);
-            contentValues.put(MovieContract.MovieEntry.COLUMN_NAME, intent.getStringExtra("movieTitle"));
-            contentValues.put(MovieContract.MovieEntry.COLUMN_IMAGE_URL, intent.getStringExtra("imageURL"));
-            contentValues.put(MovieContract.MovieEntry.COLUMN_YEAR, intent.getStringExtra("movieYear"));
-            contentValues.put(MovieContract.MovieEntry.COLUMN_RATING, intent.getStringExtra("movieRating"));
-            contentValues.put(MovieContract.MovieEntry.COLUMN_SYNOPSIS, intent.getStringExtra("moviePlot"));
+            contentValues.put(MovieContract.MovieEntry.COLUMN_NAME, movieData.getTitle());
+            contentValues.put(MovieContract.MovieEntry.COLUMN_IMAGE_URL, movieData.getPosterPath());
+            contentValues.put(MovieContract.MovieEntry.COLUMN_YEAR, movieData.getReleaseDate());
+            contentValues.put(MovieContract.MovieEntry.COLUMN_RATING, String.valueOf(movieData.getVoteAverage()));
+            contentValues.put(MovieContract.MovieEntry.COLUMN_SYNOPSIS, movieData.getOverview());
 
             Uri uri = getContentResolver().insert(MovieContract.MovieEntry.CONTENT_URI, contentValues);
             if(uri != null) {
                 Toast.makeText(getBaseContext(), uri.toString(), Toast.LENGTH_LONG).show();
                 favoriteButton.setText(R.string.remove_as_favorite);
                 editor.putBoolean(mMovieId, true);
+                editor.putInt("favoritesNumber", number + 1);
                 setFavorite = true;
             }
         }
         editor.apply();
-    }
-
-    public class FetchTrailerTask extends AsyncTask<String, Void, URL[]> {
-
-        @Override
-        protected void onPreExecute() {
-            trailerProgressBar.setVisibility(View.VISIBLE);
-            reviewProgressBar.setVisibility(View.VISIBLE);
-            mTrailerRecyclerView.setVisibility(View.INVISIBLE);
-            mReviewRecyclerView.setVisibility(View.INVISIBLE);
-            trailerErrorMessageView.setVisibility(View.INVISIBLE);
-            reviewErrorMessageView.setVisibility(View.INVISIBLE);
-        }
-
-        @Override
-        protected URL[] doInBackground(String... strings) {
-            if (strings.length == 0) {
-                return null;
-            }
-            String id = strings[0];
-            URL trailerListRequestUrl = NetworkUtils.buildTrailerListUrl(id);
-            URL reviewListRequestUrl = NetworkUtils.buildReviewListUrl(id);
-            try {
-                String jsonTrailerResponse = NetworkUtils.getResponseFromHttpUrl(trailerListRequestUrl);
-                String jsonReviewResponse = NetworkUtils.getResponseFromHttpUrl(reviewListRequestUrl);
-                DetailJsonUtils.getTrailerDetailsFromJson(DetailsActivity.this, jsonTrailerResponse);
-                DetailJsonUtils.getReviewDetailsFromJson(DetailsActivity.this, jsonReviewResponse);
-                return DetailJsonUtils.getMovieTrailerUrl();
-            } catch (Exception e) {
-                e.printStackTrace();
-                return null;
-            }
-        }
-
-        @Override
-        protected void onPostExecute(URL[] urls) {
-            trailerProgressBar.setVisibility(View.INVISIBLE);
-            reviewProgressBar.setVisibility(View.INVISIBLE);
-            if(urls != null) {
-                trailerUrls = urls;
-                reviewAuthors = DetailJsonUtils.getMovieReviewAuthor();
-                reviewContent = DetailJsonUtils.getMovieReviewContent();
-                reviewAdapter.setReviewData(reviewAuthors, reviewContent);
-                trailerAdapter.setTrailerData(trailerUrls);
-                showData();
-            }
-            else {
-                showErrorMessage();
-            }
-        }
     }
 
     private void showData() {
